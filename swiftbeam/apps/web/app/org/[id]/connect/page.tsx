@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { usePresenceStore, OnlineMember } from '@/lib/stores/presence-store';
 import { useOrganizationsStore } from '@/lib/stores/organizations-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
+import { useChatStore } from '@/lib/stores/chat-store';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ export default function ConnectPage() {
   const orgId = params.id as string;
   const { user } = useAuthStore();
   const { currentOrg, isLoading: orgLoading, fetchOrganization, clearCurrentOrg } = useOrganizationsStore();
+  const { setOrgId } = useChatStore();
   const {
     isConnected,
     onlineMembers,
@@ -72,10 +74,12 @@ export default function ConnectPage() {
         title: 'Connection established!',
         description: 'Redirecting to chat room...',
       });
+      // Store orgId for reconnection capability
+      setOrgId(orgId);
       clearAcceptedRoom();
       router.push(`/room/${acceptedRoomCode}/chat`);
     }
-  }, [acceptedRoomCode, router, toast, clearAcceptedRoom]);
+  }, [acceptedRoomCode, router, toast, clearAcceptedRoom, setOrgId, orgId]);
 
   const handleMemberClick = (member: OnlineMember) => {
     if (outgoingRequest) {

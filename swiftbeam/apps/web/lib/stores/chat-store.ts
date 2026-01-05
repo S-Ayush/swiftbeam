@@ -34,6 +34,8 @@ interface ChatState {
   messages: Message[];
   isConnected: boolean;
   roomCode: string | null;
+  orgId: string | null;
+  peerDisconnected: boolean;
 
   // Actions
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
@@ -42,6 +44,8 @@ interface ChatState {
   getMessageByFileId: (fileId: string) => Message | undefined;
   setConnected: (connected: boolean) => void;
   setRoomCode: (code: string | null) => void;
+  setOrgId: (orgId: string | null) => void;
+  setPeerDisconnected: (disconnected: boolean) => void;
   clearMessages: () => void;
 }
 
@@ -49,6 +53,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isConnected: false,
   roomCode: null,
+  orgId: null,
+  peerDisconnected: false,
 
   addMessage: (message) =>
     set((state) => ({
@@ -81,9 +87,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   getMessageByFileId: (fileId) =>
     get().messages.find((msg) => msg.file?.fileId === fileId),
 
-  setConnected: (connected) => set({ isConnected: connected }),
+  setConnected: (connected) => set({ isConnected: connected, peerDisconnected: false }),
 
   setRoomCode: (code) => set({ roomCode: code }),
 
-  clearMessages: () => set({ messages: [] }),
+  setOrgId: (orgId) => set({ orgId }),
+
+  setPeerDisconnected: (disconnected) => set({ peerDisconnected: disconnected }),
+
+  clearMessages: () => set({ messages: [], peerDisconnected: false }),
 }));
