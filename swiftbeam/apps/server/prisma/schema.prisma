@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organizations OrganizationMember[]
+  createdOrgs   Organization[]       @relation("CreatedBy")
+  invitesSent   Invite[]             @relation("InviteSender")
+  invitesUsed   Invite[]             @relation("InviteUser")
+
+  @@map("users")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  creator User                 @relation("CreatedBy", fields: [createdBy], references: [id])
+  members OrganizationMember[]
+  invites Invite[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id       String   @id @default(uuid())
+  orgId    String   @map("org_id")
+  userId   String   @map("user_id")
+  role     Role     @default(MEMBER)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@map("organization_members")
+}
+
+model Invite {
+  id        String   @id @default(uuid())
+  orgId     String   @map("org_id")
+  token     String   @unique
+  createdBy String   @map("created_by")
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  usedBy    String?  @map("used_by")
+
+  // Relations
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  creator      User         @relation("InviteSender", fields: [createdBy], references: [id])
+  usedByUser   User?        @relation("InviteUser", fields: [usedBy], references: [id])
+
+  @@map("invites")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
