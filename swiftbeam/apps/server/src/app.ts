@@ -7,6 +7,7 @@ import { rateLimit } from 'express-rate-limit';
 import healthRouter from './routes/health';
 import authRouter from './routes/auth';
 import roomRouter from './routes/rooms';
+import organizationsRouter from './routes/organizations';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use(limiter);
 app.use('/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/rooms', roomRouter);
+app.use('/api/orgs', organizationsRouter);
 
 // 404 handler
 app.use((req, res) => {

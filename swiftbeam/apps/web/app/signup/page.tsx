@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { Loader2, ArrowLeft } from 'lucide-react';
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '/dashboard';
   const { signup, isAuthenticated, isLoading: authLoading, error, clearError } = useAuthStore();
 
   const [name, setName] = useState('');
@@ -25,9 +27,9 @@ export default function SignupPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading) {
-      router.push('/dashboard');
+      router.push(redirect);
     }
-  }, [isAuthenticated, authLoading, router]);
+  }, [isAuthenticated, authLoading, router, redirect]);
 
   // Clear error on unmount
   useEffect(() => {
@@ -57,7 +59,7 @@ export default function SignupPage() {
     setIsSubmitting(true);
     try {
       await signup({ name, email, password });
-      router.push('/dashboard');
+      router.push(redirect);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Signup failed');
     } finally {
@@ -160,7 +162,7 @@ export default function SignupPage() {
 
                 <div className="text-center text-sm text-muted-foreground">
                   Already have an account?{' '}
-                  <Link href="/login" className="text-primary hover:underline">
+                  <Link href={redirect !== '/dashboard' ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login'} className="text-primary hover:underline">
                     Sign in
                   </Link>
                 </div>
@@ -170,5 +172,20 @@ export default function SignupPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }

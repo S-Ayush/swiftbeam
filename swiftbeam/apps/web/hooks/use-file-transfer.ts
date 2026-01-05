@@ -172,7 +172,8 @@ export function useFileTransfer({ dataChannel }: UseFileTransferOptions) {
   // Handle raw binary data (chunk data)
   const handleBinaryData = useCallback((data: ArrayBuffer) => {
     // Find receiver expecting data
-    for (const receiver of activeReceiversRef.current.values()) {
+    const receivers = Array.from(activeReceiversRef.current.values());
+    for (const receiver of receivers) {
       if (receiver.isExpectingData()) {
         receiver.handleChunkData(data);
         return;
