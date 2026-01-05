@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Socket } from 'socket.io-client';
-import { connectSocket, disconnectSocket } from '@/lib/socket';
+import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
 import { rtcConfig, dataChannelConfig } from '@/lib/webrtc-config';
 
 export type ConnectionStatus =
@@ -14,8 +14,49 @@ export type ConnectionStatus =
   | 'disconnected'
   | 'failed';
 
+// Use window to store connection state - survives Hot Reload and page navigation
+interface WebRTCGlobalState {
+  peerConnection: RTCPeerConnection | null;
+  dataChannel: RTCDataChannel | null;
+  roomCode: string | null;
+  isInitiator: boolean;
+  status: ConnectionStatus;
+  isDataChannelOpen: boolean;
+}
+
+declare global {
+  interface Window {
+    __webrtcState?: WebRTCGlobalState;
+  }
+}
+
+function getGlobalState(): WebRTCGlobalState {
+  if (typeof window === 'undefined') {
+    return {
+      peerConnection: null,
+      dataChannel: null,
+      roomCode: null,
+      isInitiator: false,
+      status: 'idle',
+      isDataChannelOpen: false,
+    };
+  }
+  if (!window.__webrtcState) {
+    window.__webrtcState = {
+      peerConnection: null,
+      dataChannel: null,
+      roomCode: null,
+      isInitiator: false,
+      status: 'idle',
+      isDataChannelOpen: false,
+    };
+  }
+  return window.__webrtcState;
+}
+
 interface UseWebRTCOptions {
   onMessage?: (data: any) => void;
+  onBinaryMessage?: (data: ArrayBuffer) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
   onPeerConnected?: () => void;
   onPeerDisconnected?: () => void;
@@ -27,33 +68,55 @@ interface UseWebRTCReturn {
   isInitiator: boolean;
   createRoom: () => Promise<string>;
   joinRoom: (code: string) => Promise<void>;
-  leaveRoom: () => void;
+  leaveRoom: (shouldDisconnect?: boolean) => void;
   sendMessage: (data: any) => void;
+  sendBinary: (data: ArrayBuffer) => void;
   isDataChannelOpen: boolean;
+  dataChannel: RTCDataChannel | null;
 }
 
 export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
-  const { onMessage, onConnectionChange, onPeerConnected, onPeerDisconnected } =
+  const { onMessage, onBinaryMessage, onConnectionChange, onPeerConnected, onPeerDisconnected } =
     options;
 
-  const [status, setStatus] = useState<ConnectionStatus>('idle');
-  const [roomCode, setRoomCode] = useState<string | null>(null);
-  const [isInitiator, setIsInitiator] = useState(false);
-  const [isDataChannelOpen, setIsDataChannelOpen] = useState(false);
+  // Get global state (survives Hot Reload and page navigation)
+  const globalState = getGlobalState();
 
-  const socketRef = useRef<Socket | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const dataChannelRef = useRef<RTCDataChannel | null>(null);
+  // Initialize from global state to preserve across page navigations
+  const [status, setStatus] = useState<ConnectionStatus>(globalState.status);
+  const [roomCode, setRoomCode] = useState<string | null>(globalState.roomCode);
+  const [isInitiator, setIsInitiator] = useState(globalState.isInitiator);
+  const [isDataChannelOpen, setIsDataChannelOpen] = useState(globalState.isDataChannelOpen);
+
+  const socketRef = useRef<Socket | null>(getSocket());
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(globalState.peerConnection);
+  const dataChannelRef = useRef<RTCDataChannel | null>(globalState.dataChannel);
   const pendingCandidatesRef = useRef<RTCIceCandidate[]>([]);
 
-  // Update status with callback
+  // Wrapper functions that update both local and global state immediately
   const updateStatus = useCallback(
     (newStatus: ConnectionStatus) => {
+      getGlobalState().status = newStatus;
       setStatus(newStatus);
       onConnectionChange?.(newStatus);
     },
     [onConnectionChange]
   );
+
+  const updateRoomCode = useCallback((code: string | null) => {
+    getGlobalState().roomCode = code;
+    setRoomCode(code);
+  }, []);
+
+  const updateIsInitiator = useCallback((value: boolean) => {
+    getGlobalState().isInitiator = value;
+    setIsInitiator(value);
+  }, []);
+
+  const updateIsDataChannelOpen = useCallback((value: boolean) => {
+    getGlobalState().isDataChannelOpen = value;
+    setIsDataChannelOpen(value);
+  }, []);
 
   // Create peer connection
   const createPeerConnection = useCallback(() => {
@@ -93,20 +156,30 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     };
 
     peerConnectionRef.current = pc;
+    getGlobalState().peerConnection = pc;
     return pc;
   }, [updateStatus, onPeerConnected, onPeerDisconnected]);
+
+  // Store callbacks in refs so we can update handlers without recreating channel
+  const onMessageRef = useRef(onMessage);
+  const onBinaryMessageRef = useRef(onBinaryMessage);
+  onMessageRef.current = onMessage;
+  onBinaryMessageRef.current = onBinaryMessage;
 
   // Setup data channel
   const setupDataChannel = useCallback(
     (channel: RTCDataChannel) => {
+      // Enable binary type for file transfers
+      channel.binaryType = 'arraybuffer';
+
       channel.onopen = () => {
         console.log('Data channel open');
-        setIsDataChannelOpen(true);
+        updateIsDataChannelOpen(true);
       };
 
       channel.onclose = () => {
         console.log('Data channel closed');
-        setIsDataChannelOpen(false);
+        updateIsDataChannelOpen(false);
       };
 
       channel.onerror = (error) => {
@@ -114,18 +187,35 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
       };
 
       channel.onmessage = (event) => {
+        // Handle binary data (file chunks)
+        if (event.data instanceof ArrayBuffer) {
+          onBinaryMessageRef.current?.(event.data);
+          return;
+        }
+
+        // Handle JSON messages
         try {
           const data = JSON.parse(event.data);
-          onMessage?.(data);
+          onMessageRef.current?.(data);
         } catch {
-          onMessage?.(event.data);
+          onMessageRef.current?.(event.data);
         }
       };
 
       dataChannelRef.current = channel;
+      getGlobalState().dataChannel = channel;
     },
-    [onMessage]
+    [] // No dependencies - uses refs for callbacks
   );
+
+  // Reattach handlers to existing data channel when hook mounts
+  useEffect(() => {
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      console.log('Reattaching handlers to existing data channel');
+      setupDataChannel(dataChannelRef.current);
+      updateIsDataChannelOpen(true);
+    }
+  }, [setupDataChannel, updateIsDataChannelOpen]);
 
   // Create data channel (initiator only)
   const createDataChannel = useCallback(() => {
@@ -214,8 +304,8 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
         .then((res) => res.json())
         .then((data) => {
           if (data.roomCode) {
-            setRoomCode(data.roomCode);
-            setIsInitiator(true);
+            updateRoomCode(data.roomCode);
+            updateIsInitiator(true);
 
             // Join the socket room
             socket.emit('room:join', { code: data.roomCode });
@@ -227,7 +317,7 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
         })
         .catch(reject);
     });
-  }, [updateStatus]);
+  }, [updateStatus, updateRoomCode, updateIsInitiator]);
 
   // Join an existing room
   const joinRoom = useCallback(
@@ -237,16 +327,16 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
       const socket = connectSocket();
       socketRef.current = socket;
 
-      setRoomCode(code.toUpperCase());
-      setIsInitiator(false);
+      updateRoomCode(code.toUpperCase());
+      updateIsInitiator(false);
 
       socket.emit('room:join', { code: code.toUpperCase() });
     },
-    [updateStatus]
+    [updateStatus, updateRoomCode, updateIsInitiator]
   );
 
-  // Leave the room
-  const leaveRoom = useCallback(() => {
+  // Leave the room (optionally disconnect socket)
+  const leaveRoom = useCallback((shouldDisconnect = true) => {
     // Close data channel
     if (dataChannelRef.current) {
       dataChannelRef.current.close();
@@ -260,19 +350,29 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     }
 
     // Leave socket room
-    if (socketRef.current) {
+    if (socketRef.current?.connected) {
       socketRef.current.emit('room:leave');
     }
 
-    // Reset state
-    setRoomCode(null);
-    setIsInitiator(false);
-    setIsDataChannelOpen(false);
+    // Reset local and global state (wrapper functions update both)
+    updateRoomCode(null);
+    updateIsInitiator(false);
+    updateIsDataChannelOpen(false);
     updateStatus('idle');
     pendingCandidatesRef.current = [];
+    socketRef.current = null;
 
-    disconnectSocket();
-  }, [updateStatus]);
+    // Also reset the connection refs in global state
+    const gs = getGlobalState();
+    gs.peerConnection = null;
+    gs.dataChannel = null;
+
+    // Only disconnect socket when explicitly requested (user navigation)
+    // Don't disconnect during React Strict Mode cleanup cycles
+    if (shouldDisconnect) {
+      disconnectSocket();
+    }
+  }, [updateStatus, updateRoomCode, updateIsInitiator, updateIsDataChannelOpen]);
 
   // Send message through data channel
   const sendMessage = useCallback((data: any) => {
@@ -280,6 +380,16 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     if (channel?.readyState === 'open') {
       const message = typeof data === 'string' ? data : JSON.stringify(data);
       channel.send(message);
+    } else {
+      console.warn('Data channel not open');
+    }
+  }, []);
+
+  // Send binary data through data channel
+  const sendBinary = useCallback((data: ArrayBuffer) => {
+    const channel = dataChannelRef.current;
+    if (channel?.readyState === 'open') {
+      channel.send(data);
     } else {
       console.warn('Data channel not open');
     }
@@ -296,7 +406,9 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
       isInitiator: boolean;
     }) => {
       console.log('Room joined:', data);
-      setIsInitiator(data.isInitiator);
+      // Always set roomCode from server response to ensure consistency
+      updateRoomCode(data.roomCode);
+      updateIsInitiator(data.isInitiator);
 
       if (data.isInitiator) {
         updateStatus('waiting');
@@ -367,15 +479,46 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     handleAnswer,
     handleIceCandidate,
     updateStatus,
+    updateRoomCode,
+    updateIsInitiator,
     onPeerDisconnected,
   ]);
 
-  // Cleanup on unmount
+  // Store leaveRoom in a ref to avoid cleanup issues
+  const leaveRoomRef = useRef(leaveRoom);
+  leaveRoomRef.current = leaveRoom;
+
+  // Track if component is mounted to handle React Strict Mode
+  const isMountedRef = useRef(true);
+  const cleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup on unmount only - delayed to handle React Strict Mode and page navigation
   useEffect(() => {
+    isMountedRef.current = true;
+
+    // Cancel any pending cleanup from Strict Mode's unmount or page navigation
+    if (cleanupTimeoutRef.current) {
+      clearTimeout(cleanupTimeoutRef.current);
+      cleanupTimeoutRef.current = null;
+    }
+
     return () => {
-      leaveRoom();
+      isMountedRef.current = false;
+
+      // Delay cleanup to allow Strict Mode remount or page navigation to cancel it
+      cleanupTimeoutRef.current = setTimeout(() => {
+        // Only clean up if no component has remounted with the connection
+        // Check global status - if another page has taken over, don't clean up
+        const gs = getGlobalState();
+        if (!isMountedRef.current && gs.status === 'idle') {
+          console.log('Cleaning up WebRTC connection');
+          leaveRoomRef.current(true); // Actually disconnect
+        } else if (!isMountedRef.current) {
+          console.log('Skipping cleanup - connection still active on another page, status:', gs.status);
+        }
+      }, 200); // Slightly longer delay to allow page navigation
     };
-  }, [leaveRoom]);
+  }, []);
 
   return {
     status,
@@ -385,6 +528,8 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     joinRoom,
     leaveRoom,
     sendMessage,
+    sendBinary,
     isDataChannelOpen,
+    dataChannel: dataChannelRef.current,
   };
 }

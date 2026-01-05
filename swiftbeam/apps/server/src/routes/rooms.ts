@@ -25,12 +25,17 @@ router.post('/', async (req, res) => {
     }
 
     // Create room in Redis
+    console.log(`[API] Creating room ${roomCode}`);
     await redis.hset(`room:${roomCode}`, {
       createdAt: Date.now().toString(),
       lastActivity: Date.now().toString(),
       participants: '[]',
       type: 'anonymous',
     });
+
+    // Verify room was created
+    const verifyRoom = await redis.hgetall(`room:${roomCode}`);
+    console.log(`[API] Room created, verification:`, JSON.stringify(verifyRoom));
 
     // Set TTL
     await redis.expire(`room:${roomCode}`, ROOM_TTL);
@@ -59,7 +64,12 @@ router.get('/:code', async (req, res) => {
 
     let participants: string[] = [];
     try {
-      participants = room.participants ? JSON.parse(room.participants) : [];
+      // Handle both string (from real Redis) and array (from auto-deserialization)
+      if (Array.isArray(room.participants)) {
+        participants = room.participants;
+      } else if (typeof room.participants === 'string' && room.participants) {
+        participants = JSON.parse(room.participants);
+      }
     } catch {
       participants = [];
     }

@@ -23,20 +23,32 @@ export function initializeSocket(server: HttpServer) {
         const roomCode = data.code.toUpperCase();
         const roomKey = `room:${roomCode}`;
 
+        console.log(`[Socket] Attempting to join room ${roomCode}, key: ${roomKey}`);
+
         // Check if room exists
         const room = await redis.hgetall(roomKey);
+        console.log(`[Socket] hgetall result for ${roomKey}:`, JSON.stringify(room));
 
         if (!room || Object.keys(room).length === 0) {
+          console.log(`[Socket] Room ${roomCode} not found`);
           socket.emit('room:not-found');
           return;
         }
 
         let participants: string[] = [];
         try {
-          participants = room.participants ? JSON.parse(room.participants) : [];
-        } catch {
+          // Handle both string (from real Redis) and array (from auto-deserialization)
+          if (Array.isArray(room.participants)) {
+            participants = room.participants;
+          } else if (typeof room.participants === 'string' && room.participants) {
+            participants = JSON.parse(room.participants);
+          }
+        } catch (e) {
+          console.log(`[Socket] Error parsing participants:`, e);
           participants = [];
         }
+
+        console.log(`Room ${roomCode} - Current participants:`, participants);
 
         // Check if room is full
         if (participants.length >= 2) {
@@ -46,10 +58,16 @@ export function initializeSocket(server: HttpServer) {
 
         // Add participant
         participants.push(socket.id);
-        await redis.hset(roomKey, {
+        console.log(`Room ${roomCode} - After adding ${socket.id}:`, participants);
+        const hsetResult = await redis.hset(roomKey, {
           participants: JSON.stringify(participants),
           lastActivity: Date.now().toString(),
         });
+        console.log(`[Socket] hset result:`, hsetResult);
+
+        // Verify the data was stored
+        const verifyRoom = await redis.hgetall(roomKey);
+        console.log(`[Socket] Verification hgetall for ${roomKey}:`, JSON.stringify(verifyRoom));
 
         // Extend TTL on activity
         await redis.expire(roomKey, ROOM_TTL);
@@ -141,22 +159,24 @@ async function handleLeaveRoom(socket: Socket) {
     if (room && room.participants) {
       let participants: string[] = [];
       try {
-        participants = JSON.parse(room.participants);
+        // Handle both string (from real Redis) and array (from auto-deserialization)
+        if (Array.isArray(room.participants)) {
+          participants = room.participants;
+        } else if (typeof room.participants === 'string') {
+          participants = JSON.parse(room.participants);
+        }
       } catch {
         participants = [];
       }
       participants = participants.filter((id: string) => id !== socket.id);
 
-      if (participants.length === 0) {
-        // Delete empty room
-        await redis.del(roomKey);
-      } else {
-        // Update participants
-        await redis.hset(roomKey, {
-          participants: JSON.stringify(participants),
-          lastActivity: Date.now().toString(),
-        });
-      }
+      // Always update participants, let TTL handle cleanup of empty rooms
+      // This prevents issues with React Strict Mode causing room deletion
+      await redis.hset(roomKey, {
+        participants: JSON.stringify(participants),
+        lastActivity: Date.now().toString(),
+      });
+      console.log(`Room ${roomCode} - After removing ${socket.id}:`, participants);
     }
 
     // Notify other participant

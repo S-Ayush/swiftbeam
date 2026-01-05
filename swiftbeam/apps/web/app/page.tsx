@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,12 +20,18 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
+  const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
 
   const handleJoinRoom = () => {
     if (roomCode.trim()) {
-      // Will navigate to room
-      console.log('Joining room:', roomCode.toUpperCase());
+      router.push(`/room/${roomCode.toUpperCase()}`);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleJoinRoom();
     }
   };
 
@@ -85,6 +92,7 @@ export default function HomePage() {
                         onChange={(e) =>
                           setRoomCode(e.target.value.toUpperCase())
                         }
+                        onKeyDown={handleKeyDown}
                         className="font-mono text-center text-lg tracking-widest uppercase"
                         maxLength={8}
                       />

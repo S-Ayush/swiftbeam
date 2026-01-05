@@ -55,7 +55,9 @@ export default function NewRoomPage() {
 
   // Redirect to chat when connected
   useEffect(() => {
+    console.log('Redirect check:', { status, isDataChannelOpen, roomCode });
     if (status === 'connected' && isDataChannelOpen && roomCode) {
+      console.log('Redirecting to chat...');
       router.push(`/room/${roomCode}/chat`);
     }
   }, [status, isDataChannelOpen, roomCode, router]);

@@ -16,12 +16,16 @@ const createRedis = () => {
 
 // Simple in-memory Redis mock for development
 function createInMemoryRedis() {
+  const storeId = Math.random().toString(36).substring(7);
   const store = new Map<string, any>();
   const expiry = new Map<string, number>();
+
+  console.log(`[Redis] Created new in-memory store instance (id: ${storeId})`);
 
   const checkExpiry = (key: string) => {
     const exp = expiry.get(key);
     if (exp && Date.now() > exp) {
+      console.log(`[Redis] Key ${key} expired, deleting`);
       store.delete(key);
       expiry.delete(key);
       return true;
@@ -41,6 +45,7 @@ function createInMemoryRedis() {
     },
 
     async del(key: string) {
+      console.log(`[Redis] DEL ${key}`);
       store.delete(key);
       expiry.delete(key);
       return 1;
@@ -59,7 +64,10 @@ function createInMemoryRedis() {
     async hset(key: string, data: Record<string, string>) {
       checkExpiry(key);
       const existing = store.get(key) || {};
-      store.set(key, { ...existing, ...data });
+      const newData = { ...existing, ...data };
+      store.set(key, newData);
+      console.log(`[Redis:${storeId}] HSET ${key}:`, JSON.stringify(newData));
+      console.log(`[Redis:${storeId}] Store size after HSET:`, store.size);
       return Object.keys(data).length;
     },
 
@@ -71,7 +79,10 @@ function createInMemoryRedis() {
 
     async hgetall(key: string) {
       checkExpiry(key);
-      return store.get(key) || {};
+      const data = store.get(key) || {};
+      console.log(`[Redis:${storeId}] HGETALL ${key}:`, JSON.stringify(data));
+      console.log(`[Redis:${storeId}] Store size:`, store.size);
+      return data;
     },
 
     async sadd(key: string, ...members: string[]) {

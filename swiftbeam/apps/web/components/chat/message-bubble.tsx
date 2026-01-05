@@ -4,13 +4,15 @@ import { cn } from '@/lib/utils';
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { FileMessage } from './file-message';
 import type { Message } from '@/lib/stores/chat-store';
 
 interface MessageBubbleProps {
   message: Message;
+  onCancelFile?: (fileId: string) => void;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, onCancelFile }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isOwn = message.sender === 'self';
   const isSystem = message.sender === 'system';
@@ -37,6 +39,11 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       minute: '2-digit',
     });
   };
+
+  // Handle file messages
+  if (message.type === 'file') {
+    return <FileMessage message={message} onCancel={onCancelFile} />;
+  }
 
   if (message.type === 'code') {
     return (

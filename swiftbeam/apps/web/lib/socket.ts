@@ -4,7 +4,13 @@ const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 let socket: Socket | null = null;
 
-export function getSocket(): Socket {
+// Get existing socket without creating a new one
+export function getSocket(): Socket | null {
+  return socket;
+}
+
+// Get or create socket
+export function getOrCreateSocket(): Socket {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
@@ -18,7 +24,7 @@ export function getSocket(): Socket {
 }
 
 export function connectSocket(): Socket {
-  const s = getSocket();
+  const s = getOrCreateSocket();
   if (!s.connected) {
     s.connect();
   }
