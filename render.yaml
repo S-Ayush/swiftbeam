@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: swiftbeam-api
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd apps/server && pnpm install && pnpm db:generate && pnpm build
+    startCommand: cd apps/server && pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CORS_ORIGIN
+        sync: false

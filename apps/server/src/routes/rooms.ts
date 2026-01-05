@@ -1,8 +1,8 @@
-import { Router } from 'express';
+import { Router, type IRouter } from 'express';
 import { redis } from '../utils/redis';
 import { generateRoomCode } from '../utils/helpers';
 
-const router = Router();
+const router: IRouter = Router();
 
 const ROOM_TTL = 15 * 60; // 15 minutes
 
