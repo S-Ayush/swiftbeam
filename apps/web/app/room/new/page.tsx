@@ -1,70 +1,43 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Header } from '@/components/header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { RoomCodeDisplay } from '@/components/room/room-code-display';
-import { ConnectionProgress } from '@/components/room/connection-progress';
-import { ConnectionStatusBadge } from '@/components/room/connection-status';
-import { useWebRTC } from '@/hooks/use-webrtc';
-import { ArrowLeft, Shield, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Plus,
+  Users,
+  Shield,
+  Zap,
+  Lock,
+} from 'lucide-react';
 
-export default function NewRoomPage() {
+export default function StartSharingPage() {
   const router = useRouter();
-  const [isCreating, setIsCreating] = useState(true);
+  const [roomCode, setRoomCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
-  const {
-    status,
-    roomCode,
-    isInitiator,
-    createRoom,
-    leaveRoom,
-    isDataChannelOpen,
-  } = useWebRTC({
-    onPeerConnected: () => {
-      console.log('Peer connected!');
-    },
-    onPeerDisconnected: () => {
-      console.log('Peer disconnected');
-    },
-  });
-
-  // Create room on mount (with guard for React Strict Mode)
-  const hasCreatedRef = useRef(false);
-
-  useEffect(() => {
-    if (hasCreatedRef.current) return;
-    hasCreatedRef.current = true;
-
-    const initRoom = async () => {
-      try {
-        const code = await createRoom();
-        console.log('Room created:', code);
-        setIsCreating(false);
-      } catch (error) {
-        console.error('Failed to create room:', error);
-        setIsCreating(false);
-      }
-    };
-
-    initRoom();
-  }, [createRoom]);
-
-  // Redirect to chat when connected
-  useEffect(() => {
-    console.log('Redirect check:', { status, isDataChannelOpen, roomCode });
-    if (status === 'connected' && isDataChannelOpen && roomCode) {
-      console.log('Redirecting to chat...');
-      router.push(`/room/${roomCode}/chat`);
+  const handleJoinRoom = () => {
+    if (roomCode.trim()) {
+      setIsJoining(true);
+      router.push(`/room/${roomCode.toUpperCase()}`);
     }
-  }, [status, isDataChannelOpen, roomCode, router]);
+  };
 
-  const handleCancel = () => {
-    leaveRoom();
-    router.push('/');
+  const handleCreateRoom = () => {
+    router.push('/room/create');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleJoinRoom();
+    }
   };
 
   return (
@@ -72,7 +45,7 @@ export default function NewRoomPage() {
       <Header />
 
       <main className="flex-1 container py-12">
-        <div className="max-w-md mx-auto">
+        <div className="max-w-lg mx-auto">
           {/* Back button */}
           <Link
             href="/"
@@ -82,69 +55,92 @@ export default function NewRoomPage() {
             Back to home
           </Link>
 
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">
-                {isCreating
-                  ? 'Creating Room...'
-                  : status === 'connected'
-                    ? 'Connected!'
-                    : 'Share with Your Peer'}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold tracking-tight">Start Sharing</h1>
+            <p className="text-muted-foreground mt-2">
+              Join an existing room or create a new one
+            </p>
+          </div>
+
+          {/* Join Existing Room */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Users className="h-5 w-5 text-primary" />
+                Join a Room
               </CardTitle>
+              <CardDescription>
+                Enter the room code shared by your peer
+              </CardDescription>
             </CardHeader>
+            <CardContent>
+              <div className="flex gap-3">
+                <Input
+                  placeholder="Enter room code"
+                  value={roomCode}
+                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                  onKeyDown={handleKeyDown}
+                  className="font-mono text-center text-lg tracking-widest uppercase"
+                  maxLength={8}
+                  disabled={isJoining}
+                />
+                <Button
+                  onClick={handleJoinRoom}
+                  disabled={!roomCode.trim() || isJoining}
+                  className="shrink-0"
+                >
+                  {isJoining ? 'Joining...' : 'Join'}
+                  {!isJoining && <ArrowRight className="ml-2 h-4 w-4" />}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-            <CardContent className="space-y-6">
-              {isCreating ? (
-                <div className="flex flex-col items-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-                  <p className="text-muted-foreground">
-                    Setting up secure room...
-                  </p>
+          {/* Divider */}
+          <div className="relative my-8">
+            <Separator />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-4 text-sm text-muted-foreground">
+              or
+            </span>
+          </div>
+
+          {/* Create New Room */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Plus className="h-5 w-5 text-primary" />
+                Create New Room
+              </CardTitle>
+              <CardDescription>
+                Start a new room and share the code with your peer
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                onClick={handleCreateRoom}
+                className="w-full group"
+                size="lg"
+              >
+                <Zap className="mr-2 h-5 w-5" />
+                Create Room
+                <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </Button>
+
+              {/* Features list */}
+              <div className="pt-4 space-y-3">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <Shield className="h-4 w-4 text-green-500 shrink-0" />
+                  <span>End-to-end encrypted transfers</span>
                 </div>
-              ) : roomCode ? (
-                <>
-                  {/* Room Code Display */}
-                  <RoomCodeDisplay code={roomCode} />
-
-                  {/* Connection Progress */}
-                  <div className="pt-4 border-t">
-                    <ConnectionProgress
-                      status={status}
-                      isInitiator={isInitiator}
-                    />
-                  </div>
-
-                  {/* Security note */}
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-                    <Shield className="h-5 w-5 text-green-500 shrink-0 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-medium">End-to-end secure</p>
-                      <p className="text-muted-foreground">
-                        Your files and messages go directly to your peer. We
-                        never see them.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Cancel button */}
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={handleCancel}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-destructive mb-4">
-                    Failed to create room. Please try again.
-                  </p>
-                  <Button onClick={() => window.location.reload()}>
-                    Try Again
-                  </Button>
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <Lock className="h-4 w-4 text-green-500 shrink-0" />
+                  <span>No files stored on servers</span>
                 </div>
-              )}
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  <Zap className="h-4 w-4 text-green-500 shrink-0" />
+                  <span>Direct peer-to-peer connection</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
