@@ -8,12 +8,14 @@ import { Send, Code, Paperclip } from 'lucide-react';
 interface MessageInputProps {
   onSend: (content: string, type: 'text' | 'code') => void;
   onFileSelect?: (files: FileList) => void;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
 export function MessageInput({
   onSend,
   onFileSelect,
+  onTyping,
   disabled,
 }: MessageInputProps) {
   const [message, setMessage] = useState('');
@@ -46,7 +48,13 @@ export function MessageInput({
   };
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
+    const value = e.target.value;
+    setMessage(value);
+
+    // Notify typing
+    if (value.length > 0 && onTyping) {
+      onTyping();
+    }
 
     // Auto-resize textarea
     const textarea = e.target;

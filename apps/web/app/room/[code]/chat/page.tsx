@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import Link from 'next/link';
 import { ChatHeader } from '@/components/chat/chat-header';
-import { MessageBubble } from '@/components/chat/message-bubble';
+import { MessageList } from '@/components/chat/message-list';
 import { MessageInput } from '@/components/chat/message-input';
 import { FileDropZone } from '@/components/chat/file-drop-zone';
 import { Button } from '@/components/ui/button';
@@ -12,14 +11,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useWebRTC } from '@/hooks/use-webrtc';
 import { useFileTransfer } from '@/hooks/use-file-transfer';
 import { useChatStore } from '@/lib/stores/chat-store';
-import { MessageSquare, WifiOff, RefreshCw, Users, X, Loader2 } from 'lucide-react';
+import { useNotifications } from '@/hooks/use-notifications';
+import { useChatShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { WifiOff, RefreshCw, Users, X, Loader2 } from 'lucide-react';
 
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams();
   const code = (params.code as string).toUpperCase();
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sendMessageRef = useRef<((data: any) => void) | null>(null);
   const [isWaitingForReconnect, setIsWaitingForReconnect] = useState(false);
 
   const {
@@ -31,7 +32,17 @@ export default function ChatPage() {
     orgId,
     peerDisconnected,
     setPeerDisconnected,
+    peerTyping,
+    setPeerTyping,
+    markMessageAsRead,
+    markMessagesAsDelivered,
+    addReaction,
   } = useChatStore();
+
+  // Notifications
+  const { showNotification, requestPermission, permission } = useNotifications();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   // File transfer hook - will be initialized after we have the data channel
   const fileTransferRef = useRef<ReturnType<typeof useFileTransfer> | null>(null);
@@ -44,6 +55,30 @@ export default function ChatPage() {
         return;
       }
 
+      // Handle typing indicator
+      if (data.type === 'typing') {
+        setPeerTyping(data.isTyping);
+        return;
+      }
+
+      // Handle read receipt
+      if (data.type === 'read-receipt') {
+        markMessageAsRead(data.messageId);
+        return;
+      }
+
+      // Handle delivered acknowledgment
+      if (data.type === 'delivered') {
+        markMessagesAsDelivered();
+        return;
+      }
+
+      // Handle reaction
+      if (data.type === 'reaction') {
+        addReaction(data.messageId, data.emoji, true);
+        return;
+      }
+
       // Handle text/code messages
       if (data.type === 'text' || data.type === 'code') {
         addMessage({
@@ -52,9 +87,15 @@ export default function ChatPage() {
           sender: 'peer',
           status: 'sent',
         });
+        // Send delivered acknowledgment
+        sendMessageRef.current?.({ type: 'delivered' });
+        // Show notification
+        showNotification('message', {
+          preview: data.content.slice(0, 100),
+        });
       }
     },
-    [addMessage]
+    [addMessage, setPeerTyping, markMessageAsRead, markMessagesAsDelivered, addReaction, showNotification]
   );
 
   const handleBinaryMessage = useCallback((data: ArrayBuffer) => {
@@ -71,7 +112,12 @@ export default function ChatPage() {
       sender: 'system',
       status: 'sent',
     });
-  }, [setConnected, setPeerDisconnected, addMessage]);
+    showNotification('peer-connected');
+    // Request notification permission on first connection
+    if (permission === 'default') {
+      requestPermission();
+    }
+  }, [setConnected, setPeerDisconnected, addMessage, showNotification, permission, requestPermission]);
 
   const handlePeerDisconnected = useCallback(() => {
     setConnected(false);
@@ -105,6 +151,9 @@ export default function ChatPage() {
     onPeerDisconnected: handlePeerDisconnected,
   });
 
+  // Store sendMessage ref for use in callbacks
+  sendMessageRef.current = sendMessage;
+
   // Initialize file transfer hook
   const fileTransfer = useFileTransfer({ dataChannel });
   fileTransferRef.current = fileTransfer;
@@ -128,12 +177,30 @@ export default function ChatPage() {
     }
   }, [code, status, joinRoom, setRoomCode, clearMessages]);
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Typing indicator timeout ref
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTyping = useCallback(() => {
+    // Send typing indicator
+    sendMessage({ type: 'typing', isTyping: true });
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set timeout to stop typing indicator
+    typingTimeoutRef.current = setTimeout(() => {
+      sendMessage({ type: 'typing', isTyping: false });
+    }, 2000);
+  }, [sendMessage]);
 
   const handleSend = (content: string, type: 'text' | 'code') => {
+    // Clear typing indicator
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    sendMessage({ type: 'typing', isTyping: false });
     // Add to local messages
     addMessage({
       type,
@@ -146,20 +213,49 @@ export default function ChatPage() {
     sendMessage({ type, content });
   };
 
-  const handleFileSelect = (file: File) => {
-    fileTransfer.sendFile(file);
+  const handleFilesSelect = (files: File[]) => {
+    // Queue multiple files for transfer
+    for (const file of files) {
+      fileTransfer.sendFile(file);
+    }
   };
 
-  const handleFilesSelect = (files: FileList) => {
-    // Handle first file for now (can extend to multiple later)
-    if (files.length > 0) {
-      fileTransfer.sendFile(files[0]);
-    }
+  const handleFileListSelect = (files: FileList) => {
+    // Convert FileList to File array
+    handleFilesSelect(Array.from(files));
   };
 
   const handleCancelFile = (fileId: string) => {
     fileTransfer.cancelTransfer(fileId);
   };
+
+  const handleReact = useCallback(
+    (messageId: string, emoji: string) => {
+      // Toggle reaction locally
+      const message = messages.find((m) => m.id === messageId);
+      const existingReaction = message?.reactions?.find((r) => r.emoji === emoji);
+
+      if (existingReaction?.fromSelf) {
+        // Remove reaction - but we don't have removeReaction wired yet, so just toggle
+        addReaction(messageId, emoji);
+      } else {
+        addReaction(messageId, emoji);
+      }
+
+      // Send to peer
+      sendMessage({ type: 'reaction', messageId, emoji });
+    },
+    [messages, addReaction, sendMessage]
+  );
+
+  // Copy room code to clipboard
+  const handleCopyRoomCode = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch (err) {
+      console.error('Failed to copy room code:', err);
+    }
+  }, [code]);
 
   const handleLeave = () => {
     leaveRoom();
@@ -192,8 +288,17 @@ export default function ChatPage() {
   const isConnected = status === 'connected' && isDataChannelOpen;
   const showDisconnectedOverlay = peerDisconnected && !isWaitingForReconnect;
 
+  // Keyboard shortcuts
+  useChatShortcuts({
+    onOpenFilePicker: () => fileInputRef.current?.click(),
+    onCopyRoomCode: handleCopyRoomCode,
+    onLeaveRoom: handleLeave,
+    onFocusInput: () => messageInputRef.current?.focus(),
+    isConnected,
+  });
+
   return (
-    <FileDropZone onFileSelect={handleFileSelect} disabled={!isConnected}>
+    <FileDropZone onFilesSelect={handleFilesSelect} disabled={!isConnected}>
       <div className="h-screen flex flex-col relative">
         <ChatHeader
           roomCode={code}
@@ -279,39 +384,20 @@ export default function ChatPage() {
         )}
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                <MessageSquare className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold mb-2">
-                {isConnected ? 'Start sharing' : 'Waiting for connection...'}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {isConnected
-                  ? 'Send a message, drop a file, or click the attachment button. Everything goes directly to your peer.'
-                  : 'Once your peer connects, you can start sharing messages and files.'}
-              </p>
-            </div>
-          ) : (
-            <div className="max-w-3xl mx-auto">
-              {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  onCancelFile={handleCancelFile}
-                />
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+        <MessageList
+          messages={messages}
+          peerTyping={peerTyping}
+          isConnected={isConnected}
+          onCancelFile={handleCancelFile}
+          onReact={handleReact}
+          className="flex-1"
+        />
 
         {/* Input area */}
         <MessageInput
           onSend={handleSend}
-          onFileSelect={handleFilesSelect}
+          onFileSelect={handleFileListSelect}
+          onTyping={handleTyping}
           disabled={!isConnected}
         />
       </div>
