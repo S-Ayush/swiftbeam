@@ -60,40 +60,42 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-// General rate limiting
+// General rate limiting - generous for real-time app
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  max: 300, // 300 requests per minute (5/sec burst allowed)
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: false,
   message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
-// Stricter rate limiting for auth endpoints
+// Stricter rate limiting for auth endpoints (brute force protection)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 requests per 15 minutes
+  max: 15, // 15 attempts per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many authentication attempts', code: 'RATE_LIMITED', retryAfter: 900 },
+  skipSuccessfulRequests: true, // Don't count successful logins
+  message: { error: 'Too many authentication attempts. Please try again later.', code: 'RATE_LIMITED', retryAfter: 900 },
 });
 
-// Rate limiting for room creation
+// Rate limiting for room operations - higher for real-time collaboration
 const roomLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 rooms per minute
+  max: 60, // 60 room operations per minute
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many room creation attempts', code: 'RATE_LIMITED', retryAfter: 60 },
+  message: { error: 'Too many room requests. Please slow down.', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
 // Rate limiting for organization operations
 const orgLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 operations per hour
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 50 operations per 15 minutes
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many organization operations', code: 'RATE_LIMITED', retryAfter: 3600 },
+  message: { error: 'Too many organization operations. Please try again later.', code: 'RATE_LIMITED', retryAfter: 900 },
 });
 
 // Apply general rate limiting
