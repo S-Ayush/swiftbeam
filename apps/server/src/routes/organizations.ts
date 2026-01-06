@@ -3,7 +3,6 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma';
 import { authMiddleware } from '../middleware/auth';
-import type { OrganizationMember, Organization, Invite, User, InviteAccept } from '@prisma/client';
 
 const router: IRouter = Router();
 
@@ -226,7 +225,7 @@ router.get('/', async (req, res) => {
       orderBy: { joinedAt: 'desc' },
     });
 
-    const organizations = memberships.map((m: OrganizationMember & { organization: Organization & { _count: { members: number } } }) => ({
+    const organizations = memberships.map((m: { organization: { id: string; name: string; _count: { members: number } }; role: string; joinedAt: Date }) => ({
       id: m.organization.id,
       name: m.organization.name,
       role: m.role,
@@ -521,9 +520,18 @@ router.get('/:id/invites', async (req, res) => {
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    type InviteWithRelations = Invite & {
+    type InviteWithRelations = {
+      id: string;
+      token: string;
+      role: string;
+      label: string | null;
+      maxUses: number | null;
+      useCount: number;
+      revoked: boolean;
+      expiresAt: Date;
+      createdAt: Date;
       creator: { id: string; name: string };
-      acceptedBy: (InviteAccept & { user: { id: string; name: string; email: string } })[];
+      acceptedBy: { user: { id: string; name: string; email: string }; acceptedAt: Date }[];
     };
 
     res.json({
@@ -541,7 +549,7 @@ router.get('/:id/invites', async (req, res) => {
         url: `${frontendUrl}/invite/${invite.token}`,
         isExpired: new Date() > invite.expiresAt,
         isExhausted: invite.maxUses !== null && invite.useCount >= invite.maxUses,
-        acceptedBy: invite.acceptedBy.map((a: InviteWithRelations['acceptedBy'][number]) => ({
+        acceptedBy: invite.acceptedBy.map((a: { user: { id: string; name: string; email: string }; acceptedAt: Date }) => ({
           user: a.user,
           acceptedAt: a.acceptedAt,
         })),
