@@ -74,7 +74,7 @@ export function MessageInput({
   };
 
   return (
-    <div className="border-t bg-background p-4">
+    <div className="border-t bg-background p-4 pb-4 safe-area-bottom">
       <div
         className={cn(
           'flex items-end gap-2 rounded-xl border bg-muted/50 p-2',
@@ -85,9 +85,10 @@ export function MessageInput({
         <Button
           variant="ghost"
           size="icon"
-          className="shrink-0 h-9 w-9"
+          className="shrink-0 h-10 w-10 touch-target"
           onClick={handleFileClick}
           disabled={disabled}
+          aria-label="Attach file"
         >
           <Paperclip className="h-5 w-5" />
         </Button>
@@ -97,15 +98,18 @@ export function MessageInput({
           className="hidden"
           onChange={handleFileChange}
           multiple
+          aria-label="Select files to send"
         />
 
         {/* Code mode toggle */}
         <Button
           variant={isCodeMode ? 'secondary' : 'ghost'}
           size="icon"
-          className="shrink-0 h-9 w-9"
+          className="shrink-0 h-10 w-10 touch-target"
           onClick={() => setIsCodeMode(!isCodeMode)}
           disabled={disabled}
+          aria-label={isCodeMode ? 'Exit code mode' : 'Enter code mode'}
+          aria-pressed={isCodeMode}
         >
           <Code className="h-5 w-5" />
         </Button>
@@ -118,8 +122,10 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           placeholder={isCodeMode ? 'Paste or type code...' : 'Type a message...'}
           disabled={disabled}
+          aria-label={isCodeMode ? 'Code input' : 'Message input'}
+          aria-describedby="input-hint"
           className={cn(
-            'flex-1 resize-none bg-transparent outline-none min-h-[36px] max-h-[200px] py-2 px-1 text-sm',
+            'flex-1 resize-none bg-transparent outline-none min-h-[40px] max-h-[200px] py-2.5 px-1 text-sm',
             isCodeMode && 'font-mono text-[#d4d4d4]',
             disabled && 'opacity-50'
           )}
@@ -129,16 +135,17 @@ export function MessageInput({
         {/* Send button */}
         <Button
           size="icon"
-          className="shrink-0 h-9 w-9"
+          className="shrink-0 h-10 w-10 touch-target"
           onClick={handleSubmit}
           disabled={disabled || !message.trim()}
+          aria-label="Send message"
         >
-          <Send className="h-4 w-4" />
+          <Send className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* Hints */}
-      <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+      {/* Hints - hidden on mobile */}
+      <div id="input-hint" className="hidden sm:flex justify-between mt-2 text-xs text-muted-foreground">
         <span>
           {isCodeMode ? 'Code mode: Cmd+Enter to send' : 'Enter to send, Shift+Enter for new line'}
         </span>

@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { OfflineBanner } from '@/components/offline-banner';
+import { PWAInstallPrompt } from '@/components/pwa-install-prompt';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
@@ -22,6 +23,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
@@ -33,6 +37,21 @@ export const metadata: Metadata = {
   title: {
     default: 'SwiftBeam - Instant P2P File Sharing | No Signup Required',
     template: '%s | SwiftBeam',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'SwiftBeam',
+  },
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
   },
   description:
     'Share files instantly with peer-to-peer technology. No signup required, no server storage, no file size tracking. Fast, secure, and private direct transfers up to 15GB.',
@@ -118,6 +137,7 @@ export default function RootLayout({
             <AuthProvider>
               {children}
             </AuthProvider>
+            <PWAInstallPrompt />
           </ErrorBoundary>
           <Toaster />
         </ThemeProvider>

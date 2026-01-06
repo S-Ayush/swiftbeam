@@ -99,10 +99,12 @@ export function MessageList({
   return (
     <div
       ref={containerRef}
-      className={cn('flex-1 overflow-y-auto p-4', className)}
+      className={cn('flex-1 overflow-y-auto p-4 momentum-scroll', className)}
       role="log"
       aria-live="polite"
       aria-label="Chat messages"
+      aria-relevant="additions"
+      tabIndex={0}
     >
       <div className="max-w-3xl mx-auto">
         {processedMessages.map(({ message, needsDateSeparator, isFirstInGroup, isLastInGroup }) => (

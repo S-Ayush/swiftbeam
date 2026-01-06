@@ -16,6 +16,8 @@ export function TypingIndicator({ isTyping, className }: TypingIndicatorProps) {
         'flex items-center gap-3 px-4 py-2 animate-in fade-in-0 slide-in-from-bottom-2 duration-200',
         className
       )}
+      role="status"
+      aria-label="Peer is typing"
     >
       {/* Avatar placeholder */}
       <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium text-muted-foreground">

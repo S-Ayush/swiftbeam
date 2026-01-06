@@ -13,6 +13,7 @@ import { useFileTransfer } from '@/hooks/use-file-transfer';
 import { useChatStore } from '@/lib/stores/chat-store';
 import { useNotifications } from '@/hooks/use-notifications';
 import { useChatShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useClipboardPaste } from '@/hooks/use-clipboard-paste';
 import { WifiOff, RefreshCw, Users, X, Loader2 } from 'lucide-react';
 
 export default function ChatPage() {
@@ -295,6 +296,12 @@ export default function ChatPage() {
     onLeaveRoom: handleLeave,
     onFocusInput: () => messageInputRef.current?.focus(),
     isConnected,
+  });
+
+  // Clipboard paste support
+  useClipboardPaste({
+    onPasteFiles: handleFilesSelect,
+    enabled: isConnected,
   });
 
   return (
