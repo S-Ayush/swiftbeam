@@ -4,8 +4,9 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: cd apps/server && pnpm install && pnpm db:generate && pnpm build
-    startCommand: cd apps/server && pnpm start
+    rootDir: apps/server
+    buildCommand: pnpm install && pnpm db:generate && pnpm build
+    startCommand: pnpm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
