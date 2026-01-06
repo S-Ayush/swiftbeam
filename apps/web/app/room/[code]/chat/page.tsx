@@ -97,6 +97,7 @@ export default function ChatPage() {
     sendMessage,
     isDataChannelOpen,
     dataChannel,
+    peerConnection,
   } = useWebRTC({
     onMessage: handleMessage,
     onBinaryMessage: handleBinaryMessage,
@@ -198,6 +199,7 @@ export default function ChatPage() {
           roomCode={code}
           status={status}
           onLeave={handleLeave}
+          peerConnection={peerConnection}
         />
 
         {/* Disconnection Overlay */}

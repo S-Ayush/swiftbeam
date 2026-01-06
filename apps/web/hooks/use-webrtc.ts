@@ -73,6 +73,7 @@ interface UseWebRTCReturn {
   sendBinary: (data: ArrayBuffer) => void;
   isDataChannelOpen: boolean;
   dataChannel: RTCDataChannel | null;
+  peerConnection: RTCPeerConnection | null;
 }
 
 export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
@@ -531,5 +532,6 @@ export function useWebRTC(options: UseWebRTCOptions = {}): UseWebRTCReturn {
     sendBinary,
     isDataChannelOpen,
     dataChannel: dataChannelRef.current,
+    peerConnection: peerConnectionRef.current,
   };
 }
