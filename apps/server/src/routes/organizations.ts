@@ -3,6 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { prisma } from '../utils/prisma';
 import { authMiddleware } from '../middleware/auth';
+import type { OrganizationMember, Organization, Invite, User, InviteAccept } from '@prisma/client';
 
 const router: IRouter = Router();
 
@@ -225,7 +226,7 @@ router.get('/', async (req, res) => {
       orderBy: { joinedAt: 'desc' },
     });
 
-    const organizations = memberships.map((m) => ({
+    const organizations = memberships.map((m: OrganizationMember & { organization: Organization & { _count: { members: number } } }) => ({
       id: m.organization.id,
       name: m.organization.name,
       role: m.role,
@@ -520,8 +521,13 @@ router.get('/:id/invites', async (req, res) => {
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+    type InviteWithRelations = Invite & {
+      creator: { id: string; name: string };
+      acceptedBy: (InviteAccept & { user: { id: string; name: string; email: string } })[];
+    };
+
     res.json({
-      invites: invites.map((invite) => ({
+      invites: invites.map((invite: InviteWithRelations) => ({
         id: invite.id,
         token: invite.token,
         role: invite.role,
@@ -535,7 +541,7 @@ router.get('/:id/invites', async (req, res) => {
         url: `${frontendUrl}/invite/${invite.token}`,
         isExpired: new Date() > invite.expiresAt,
         isExhausted: invite.maxUses !== null && invite.useCount >= invite.maxUses,
-        acceptedBy: invite.acceptedBy.map((a) => ({
+        acceptedBy: invite.acceptedBy.map((a: InviteWithRelations['acceptedBy'][number]) => ({
           user: a.user,
           acceptedAt: a.acceptedAt,
         })),
