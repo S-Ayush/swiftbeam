@@ -2,6 +2,10 @@
 
 A web-based peer-to-peer data sharing platform that enables users to share text, code, and files directly without server-side storage. Data transfers happen in real-time and disappear once the session ends.
 
+## Live Demo
+
+- **Frontend:** https://swiftbeam-web.vercel.app
+- **Backend API:** https://swiftbeam.onrender.com
 ## Features
 
 - **Anonymous P2P Sharing** - Share files without creating an account via room codes
@@ -93,7 +97,7 @@ swiftbeam/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/swiftbeam.git
+   git clone https://github.com/S-Ayush/swiftbeam.git
    cd swiftbeam
    ```
 
