@@ -7,7 +7,7 @@ import { Header } from '@/components/header';
 import { ProtectedRoute } from '@/components/auth/protected-route';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { usePresenceStore, OnlineMember } from '@/lib/stores/presence-store';
+import { usePresenceStore, type OnlineMember } from '@/lib/stores/presence-store';
 import { useOrganizationsStore } from '@/lib/stores/organizations-store';
 import { useAuthStore } from '@/lib/stores/auth-store';
 import { useChatStore } from '@/lib/stores/chat-store';
@@ -23,6 +23,7 @@ import {
   Check,
   Clock,
 } from 'lucide-react';
+import { RadarCanvas } from '@/components/radar';
 
 export default function ConnectPage() {
   const params = useParams();
@@ -235,36 +236,24 @@ export default function ConnectPage() {
               </Card>
             )}
 
-            {/* Online Members */}
-            <Card>
+            {/* Online Members - Radar View */}
+            <Card className="overflow-hidden">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users className="h-5 w-5" />
                   Online Members
                 </CardTitle>
                 <CardDescription>
-                  Click on a member to send a connection request
+                  Click on a member in the radar to connect
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                {onlineMembers.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>No other members online</p>
-                    <p className="text-sm">Wait for team members to come online</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-4">
-                    {onlineMembers.map((member) => (
-                      <MemberBubble
-                        key={member.socketId}
-                        member={member}
-                        onClick={() => handleMemberClick(member)}
-                        disabled={!!outgoingRequest}
-                      />
-                    ))}
-                  </div>
-                )}
+              <CardContent className="py-8">
+                <RadarCanvas
+                  members={onlineMembers}
+                  onMemberClick={handleMemberClick}
+                  disabled={!!outgoingRequest}
+                  pendingMemberId={outgoingRequest?.to.id}
+                />
               </CardContent>
             </Card>
 
@@ -289,55 +278,5 @@ export default function ConnectPage() {
         </main>
       </div>
     </ProtectedRoute>
-  );
-}
-
-interface MemberBubbleProps {
-  member: OnlineMember;
-  onClick: () => void;
-  disabled: boolean;
-}
-
-function MemberBubble({ member, onClick, disabled }: MemberBubbleProps) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`
-        group relative flex flex-col items-center gap-2 p-4 rounded-xl
-        border-2 border-transparent hover:border-primary
-        bg-muted/50 hover:bg-primary/5
-        transition-all duration-200
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-      `}
-    >
-      {/* Online indicator */}
-      <div className="absolute top-2 right-2">
-        <span className="relative flex h-3 w-3">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-        </span>
-      </div>
-
-      {/* Avatar */}
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-medium group-hover:scale-110 transition-transform">
-        {member.name.charAt(0).toUpperCase()}
-      </div>
-
-      {/* Name */}
-      <div className="text-center">
-        <p className="font-medium text-sm">{member.name}</p>
-        <p className="text-xs text-muted-foreground truncate max-w-[120px]">{member.email}</p>
-      </div>
-
-      {/* Hover hint */}
-      {!disabled && (
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded whitespace-nowrap">
-            Click to connect
-          </span>
-        </div>
-      )}
-    </button>
   );
 }
