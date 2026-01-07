@@ -1,3 +1,7 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Zap,
@@ -13,6 +17,7 @@ import {
   Server,
   Github,
 } from 'lucide-react';
+import { useAuthStore } from '@/lib/stores/auth-store';
 
 // JSON-LD Structured Data
 const jsonLd = {
@@ -41,6 +46,21 @@ const jsonLd = {
 };
 
 export default function LandingPage() {
+  const router = useRouter();
+  const { user, isLoading } = useAuthStore();
+
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, isLoading, router]);
+
+  // Show nothing while checking auth (prevents flash)
+  if (isLoading || user) {
+    return null;
+  }
+
   return (
     <>
       {/* JSON-LD Structured Data */}

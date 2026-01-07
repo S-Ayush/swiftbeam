@@ -187,12 +187,17 @@ router.get('/me', authMiddleware, async (req, res) => {
   }
 });
 
+// Token expiration constants
+const ACCESS_TOKEN_EXPIRY = '1h'; // 1 hour - short-lived for security
+const REFRESH_TOKEN_EXPIRY = '90d'; // 90 days (3 months)
+const REFRESH_COOKIE_MAX_AGE = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
+
 // Helper functions
 function generateAccessToken(userId: string, email: string): string {
   return jwt.sign(
     { sub: userId, email },
     process.env.JWT_SECRET || 'secret',
-    { expiresIn: '15m' }
+    { expiresIn: ACCESS_TOKEN_EXPIRY }
   );
 }
 
@@ -200,7 +205,7 @@ function generateRefreshToken(userId: string): string {
   return jwt.sign(
     { sub: userId },
     process.env.JWT_REFRESH_SECRET || 'refresh-secret',
-    { expiresIn: '7d' }
+    { expiresIn: REFRESH_TOKEN_EXPIRY }
   );
 }
 
@@ -209,7 +214,7 @@ function setRefreshCookie(res: any, token: string): void {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: REFRESH_COOKIE_MAX_AGE,
   });
 }
 
