@@ -73,7 +73,8 @@ export interface InviteInfo {
 class OrganizationsAPI {
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry: boolean = false
   ): Promise<T> {
     const url = `${API_URL}${endpoint}`;
     const headers: Record<string, string> = {
@@ -91,6 +92,18 @@ class OrganizationsAPI {
       headers,
       credentials: 'include',
     });
+
+    // Handle 401 - try to refresh token
+    if (response.status === 401 && !isRetry) {
+      try {
+        await authAPI.refresh();
+        // Retry the original request with new token
+        return this.request<T>(endpoint, options, true);
+      } catch {
+        // Refresh failed, throw error
+        throw new Error('Session expired. Please log in again.');
+      }
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }));
