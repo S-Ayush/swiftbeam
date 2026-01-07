@@ -120,7 +120,7 @@ export function RadarBackground({ size }: RadarBackgroundProps) {
           repeat: Infinity,
           ease: 'linear',
         }}
-        style={{ originX: `${center}px`, originY: `${center}px` }}
+        style={{ transformOrigin: `${center}px ${center}px` }}
       >
         {/* Sweep trail (cone/arc effect) */}
         <path

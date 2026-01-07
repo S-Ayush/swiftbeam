@@ -44,7 +44,31 @@ interface PresenceState {
   clearAcceptedRoom: () => void;
 }
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+// Determine socket URL based on environment (called lazily)
+const getSocketUrl = (): string => {
+  // Use explicitly set env var if available
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL;
+  }
+
+  // In browser, derive from current origin for production
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    // For production (not localhost), use the server URL
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      // Check for explicitly set server URL first
+      if (process.env.NEXT_PUBLIC_SERVER_URL) {
+        return process.env.NEXT_PUBLIC_SERVER_URL;
+      }
+      // Fallback: warn user to set the env variable
+      console.warn('[Presence] NEXT_PUBLIC_SOCKET_URL not set for production. Socket connection will fail.');
+      console.warn('[Presence] Set NEXT_PUBLIC_SOCKET_URL in your environment variables.');
+    }
+  }
+
+  // Default for local development
+  return 'http://localhost:3001';
+};
 
 export const usePresenceStore = create<PresenceState>((set, get) => ({
   socket: null,
@@ -56,12 +80,28 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
 
   connect: (orgId: string, user: { id: string; name: string; email: string }) => {
     const existingSocket = get().socket;
+
+    // If already connected to this org, don't reconnect
     if (existingSocket?.connected) {
+      console.log('[Presence] Already connected, skipping');
       return;
     }
 
-    const socket = io(SOCKET_URL, {
+    // Clean up any existing socket first
+    if (existingSocket) {
+      console.log('[Presence] Cleaning up existing socket');
+      existingSocket.removeAllListeners();
+      existingSocket.disconnect();
+    }
+
+    const socketUrl = getSocketUrl();
+    console.log('[Presence] Creating new socket connection to:', socketUrl);
+
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     socket.on('connect', () => {
