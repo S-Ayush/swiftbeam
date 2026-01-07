@@ -44,31 +44,8 @@ interface PresenceState {
   clearAcceptedRoom: () => void;
 }
 
-// Determine socket URL based on environment (called lazily)
-const getSocketUrl = (): string => {
-  // Use explicitly set env var if available
-  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
-    return process.env.NEXT_PUBLIC_SOCKET_URL;
-  }
-
-  // In browser, derive from current origin for production
-  if (typeof window !== 'undefined') {
-    const { hostname } = window.location;
-    // For production (not localhost), use the server URL
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      // Check for explicitly set server URL first
-      if (process.env.NEXT_PUBLIC_SERVER_URL) {
-        return process.env.NEXT_PUBLIC_SERVER_URL;
-      }
-      // Fallback: warn user to set the env variable
-      console.warn('[Presence] NEXT_PUBLIC_SOCKET_URL not set for production. Socket connection will fail.');
-      console.warn('[Presence] Set NEXT_PUBLIC_SOCKET_URL in your environment variables.');
-    }
-  }
-
-  // Default for local development
-  return 'http://localhost:3001';
-};
+// Socket URL - consistent with socket.ts, uses NEXT_PUBLIC_API_URL
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 export const usePresenceStore = create<PresenceState>((set, get) => ({
   socket: null,
@@ -94,10 +71,9 @@ export const usePresenceStore = create<PresenceState>((set, get) => ({
       existingSocket.disconnect();
     }
 
-    const socketUrl = getSocketUrl();
-    console.log('[Presence] Creating new socket connection to:', socketUrl);
+    console.log('[Presence] Creating new socket connection to:', SOCKET_URL);
 
-    const socket = io(socketUrl, {
+    const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
