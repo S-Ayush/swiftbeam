@@ -9,41 +9,33 @@ interface RadarBackgroundProps {
 export function RadarBackground({ size }: RadarBackgroundProps) {
   const center = size / 2;
   const maxRadius = center - 8;
-  const rings = [0.25, 0.5, 0.75, 1.0]; // Radius percentages
+  const rings = [0.25, 0.5, 0.75, 1.0]; // Static ring positions
 
   return (
     <svg
       width={size}
       height={size}
       className="absolute inset-0"
-      style={{ overflow: 'visible' }}
+      viewBox={`0 0 ${size} ${size}`}
     >
       <defs>
+        {/* Gradient for expanding ping circles */}
+        <radialGradient id="pingGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+          <stop offset="70%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+        </radialGradient>
+
         {/* Sweep line gradient */}
         <linearGradient id="sweepGradient" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-          <stop offset="70%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="hsl(var(--primary))" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.8" />
         </linearGradient>
 
-        {/* Sweep trail gradient (cone effect) */}
-        <linearGradient id="sweepTrail" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
-        </linearGradient>
-
-        {/* Glow filter for sweep line */}
-        <filter id="sweepGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="3" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-
-        {/* Outer glow for rings */}
-        <filter id="ringGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="1" result="blur" />
+        {/* Glow filter */}
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
@@ -51,30 +43,29 @@ export function RadarBackground({ size }: RadarBackgroundProps) {
         </filter>
       </defs>
 
-      {/* Background circle with subtle gradient */}
+      {/* Background circle */}
       <circle
         cx={center}
         cy={center}
         r={maxRadius}
-        className="fill-background/80 stroke-border"
+        className="fill-background/90 stroke-primary/20"
         strokeWidth="2"
       />
 
-      {/* Concentric rings */}
+      {/* Static concentric rings */}
       {rings.map((ratio, i) => (
         <circle
-          key={i}
+          key={`static-${i}`}
           cx={center}
           cy={center}
           r={maxRadius * ratio}
           fill="none"
-          className="stroke-primary/20"
+          className="stroke-primary/15"
           strokeWidth="1"
-          filter="url(#ringGlow)"
         />
       ))}
 
-      {/* Cross hairs - vertical */}
+      {/* Cross hairs */}
       <line
         x1={center}
         y1={center - maxRadius}
@@ -83,8 +74,6 @@ export function RadarBackground({ size }: RadarBackgroundProps) {
         className="stroke-primary/10"
         strokeWidth="1"
       />
-
-      {/* Cross hairs - horizontal */}
       <line
         x1={center - maxRadius}
         y1={center}
@@ -94,88 +83,98 @@ export function RadarBackground({ size }: RadarBackgroundProps) {
         strokeWidth="1"
       />
 
-      {/* Diagonal lines for extra detail */}
-      <line
-        x1={center - maxRadius * 0.7}
-        y1={center - maxRadius * 0.7}
-        x2={center + maxRadius * 0.7}
-        y2={center + maxRadius * 0.7}
-        className="stroke-primary/5"
-        strokeWidth="1"
-      />
-      <line
-        x1={center + maxRadius * 0.7}
-        y1={center - maxRadius * 0.7}
-        x2={center - maxRadius * 0.7}
-        y2={center + maxRadius * 0.7}
-        className="stroke-primary/5"
-        strokeWidth="1"
-      />
-
-      {/* Animated sweep line group */}
-      <motion.g
-        animate={{ rotate: 360 }}
-        transition={{
-          duration: 5,
-          repeat: Infinity,
-          ease: 'linear',
-        }}
-        style={{ transformOrigin: `${center}px ${center}px` }}
-      >
-        {/* Sweep trail (cone/arc effect) */}
-        <path
-          d={`
-            M ${center} ${center}
-            L ${center + maxRadius} ${center}
-            A ${maxRadius} ${maxRadius} 0 0 0
-            ${center + maxRadius * Math.cos(-Math.PI * 0.12)}
-            ${center + maxRadius * Math.sin(-Math.PI * 0.12)}
-            Z
-          `}
-          className="fill-primary/10"
-        />
-
-        {/* Main sweep line */}
-        <line
-          x1={center}
-          y1={center}
-          x2={center + maxRadius}
-          y2={center}
-          stroke="url(#sweepGradient)"
-          strokeWidth="2"
-          filter="url(#sweepGlow)"
-          strokeLinecap="round"
-        />
-
-        {/* Sweep line tip glow */}
-        <circle
-          cx={center + maxRadius - 4}
+      {/* Animated expanding ping circles */}
+      {[0, 1, 2].map((i) => (
+        <motion.circle
+          key={`ping-${i}`}
+          cx={center}
           cy={center}
-          r="4"
-          className="fill-primary/60"
-          filter="url(#sweepGlow)"
+          r={10}
+          fill="none"
+          className="stroke-primary/40"
+          strokeWidth="2"
+          initial={{ r: 10, opacity: 0.6 }}
+          animate={{
+            r: maxRadius,
+            opacity: 0,
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            delay: i * 1, // Stagger each circle by 1 second
+            ease: 'easeOut',
+          }}
         />
-      </motion.g>
+      ))}
+
+      {/* Rotating sweep line */}
+      <g style={{ transformOrigin: `${center}px ${center}px` }}>
+        <motion.g
+          animate={{ rotate: 360 }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+          style={{ transformOrigin: `${center}px ${center}px` }}
+        >
+          {/* Sweep cone/trail */}
+          <path
+            d={`
+              M ${center} ${center}
+              L ${center + maxRadius} ${center}
+              A ${maxRadius} ${maxRadius} 0 0 1
+              ${center + maxRadius * Math.cos(Math.PI / 6)}
+              ${center - maxRadius * Math.sin(Math.PI / 6)}
+              Z
+            `}
+            fill="url(#pingGradient)"
+            className="opacity-40"
+          />
+
+          {/* Main sweep line */}
+          <line
+            x1={center}
+            y1={center}
+            x2={center + maxRadius}
+            y2={center}
+            stroke="url(#sweepGradient)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            filter="url(#glow)"
+          />
+
+          {/* Sweep line tip dot */}
+          <circle
+            cx={center + maxRadius - 6}
+            cy={center}
+            r="4"
+            className="fill-primary"
+            filter="url(#glow)"
+          />
+        </motion.g>
+      </g>
 
       {/* Center dot */}
       <circle
         cx={center}
         cy={center}
-        r="4"
-        className="fill-primary/40"
+        r="6"
+        className="fill-primary/60"
+        filter="url(#glow)"
       />
 
       {/* Pulsing center ring */}
       <motion.circle
         cx={center}
         cy={center}
-        r="8"
+        r={12}
         fill="none"
-        className="stroke-primary/30"
+        className="stroke-primary/40"
         strokeWidth="2"
         animate={{
-          r: [8, 12, 8],
-          opacity: [0.3, 0.1, 0.3],
+          r: [12, 20, 12],
+          opacity: [0.4, 0.1, 0.4],
         }}
         transition={{
           duration: 2,
