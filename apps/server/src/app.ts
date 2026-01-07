@@ -60,42 +60,53 @@ app.use(
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
-// General rate limiting - generous for real-time app
+// Key generator - rate limit per user (falls back to IP for unauthenticated)
+const getUserKey = (req: express.Request): string => {
+  // Try to get user ID from auth token/session
+  const userId = (req as any).user?.id || (req as any).userId;
+  if (userId) return `user_${userId}`;
+  // Fallback to IP for unauthenticated requests
+  return req.ip || req.socket.remoteAddress || 'unknown';
+};
+
+// General rate limiting - per user
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 300, // 300 requests per minute (5/sec burst allowed)
+  max: 200, // 200 requests per user per minute
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: false,
+  keyGenerator: getUserKey,
   message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
-// Stricter rate limiting for auth endpoints (brute force protection)
+// Auth rate limiting - per IP (users aren't authenticated yet)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // 15 attempts per 15 minutes
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 auth attempts per minute per IP
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful logins
-  message: { error: 'Too many authentication attempts. Please try again later.', code: 'RATE_LIMITED', retryAfter: 900 },
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many login attempts. Please wait a minute.', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
-// Rate limiting for room operations - higher for real-time collaboration
+// Room operations - per user
 const roomLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 60, // 60 room operations per minute
+  max: 30, // 30 room operations per user per minute
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: getUserKey,
   message: { error: 'Too many room requests. Please slow down.', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
-// Rate limiting for organization operations
+// Organization operations - per user (increased limit)
 const orgLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // 50 operations per 15 minutes
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 org operations per user per minute
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many organization operations. Please try again later.', code: 'RATE_LIMITED', retryAfter: 900 },
+  keyGenerator: getUserKey,
+  message: { error: 'Too many requests. Please slow down.', code: 'RATE_LIMITED', retryAfter: 60 },
 });
 
 // Apply general rate limiting
