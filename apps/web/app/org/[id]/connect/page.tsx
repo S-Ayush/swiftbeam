@@ -214,11 +214,13 @@ export default function ConnectPage() {
 
             {/* Outgoing Request Status */}
             {outgoingRequest && (
-              <Card className="mb-8 border-orange-200 bg-orange-50">
+              <Card className="mb-8 border-orange-500/50 bg-orange-500/10">
                 <CardContent className="py-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/20 text-orange-400">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                      </div>
                       <div>
                         <p className="font-semibold">Waiting for {outgoingRequest.to.name}</p>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
